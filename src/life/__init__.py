@@ -12,3 +12,8 @@ information = ['mean radius', 'mean texture', 'mean perimeter', 'mean area',
        'worst radius', 'worst texture', 'worst perimeter', 'worst area',
        'worst smoothness', 'worst compactness', 'worst concavity',
        'worst concave points', 'worst symmetry', 'worst fractal dimension']
+X = data[information].to_numpy()
+Y = data["diagnosis"].map({"malignant":0,"benign":1}).to_numpy()
+x_train,x_temp,y_train,y_temp=ts(X,Y,test_size=0.30,random_state=42,shuffle=True)
+x_valid,x_test,y_valid,y_test = ts(x_temp,y_temp,test_size=0.50,random_state=42,shuffle=True)
+print(x_train.shape)
