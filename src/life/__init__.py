@@ -23,7 +23,10 @@ def relu(z):
     return np.maximum(z*0.01,z)
 def relu_deri(z):
     return np.where(z>0,1.0,0.01)
-
+def bse(y,z):
+    escpilion = 1e-15
+    new_y  = np.clip(y,escpilion,1-escpilion)
+    return -np.mean((new_y)*(np.log(z))+(1-new_y)*(np.log(1-z)))
 def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
     # Creating neurons and their layers
     w1 = np.random.randn(30,16)*np.sqrt(2/4)
@@ -53,6 +56,9 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         a5 = np.dot(z4,w5)+b5
         z5 = sigmoid(a5)
 
+        loss = bse(z5,y_train)
+        print(loss)
+
         da5 = (z5-y_train)
         dw5 = (1/m)*(np.dot(z4.T,da5))
         db5 = (1/m)*np.sum(da5,keepdims=True,axis=0)
@@ -71,7 +77,7 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
 
         w5 -= lrt*dw5 
         b5 -= lrt*db5 
-        w4-= lrt*dw4 
+        w4 -= lrt*dw4 
         b4 -= lrt*db4 
         w3 -= lrt*db3 
         b3 -= lrt*db3      
@@ -79,4 +85,7 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         b2 -= lrt*db2 
         w1 -= lrt*dw1  
         b1 -= lrt*db1 
-         
+
+        if ephoc%100 ==0:
+
+process(x_train,y_train,x_valid,y_valid,x_test,y_test)         
