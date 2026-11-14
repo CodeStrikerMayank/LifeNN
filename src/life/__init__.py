@@ -12,11 +12,17 @@ information = ['mean radius', 'mean texture', 'mean perimeter', 'mean area',
        'worst radius', 'worst texture', 'worst perimeter', 'worst area',
        'worst smoothness', 'worst compactness', 'worst concavity',
        'worst concave points', 'worst symmetry', 'worst fractal dimension']
+
 X = data[information].to_numpy()
 Y = data["diagnosis"].map({"malignant":0,"benign":1}).to_numpy()
 x_train,x_temp,y_train,y_temp=ts(X,Y,test_size=0.30,random_state=42,shuffle=True)
 x_valid,x_test,y_valid,y_test = ts(x_temp,y_temp,test_size=0.50,random_state=42,shuffle=True)
-print(x_train.shape)
+"""Standardisation of the  inputs and create a uniformity"""
+sig = np.std(x_train,axis=0,keepdims=True)
+avg = np.mean(x_train,axis=0,keepdims=True)
+x_train = (x_train-avg)/(sig+(1e-8))
+x_valid = (x_valid-avg)/(sig+(1e-8))
+x_test = (x_test-avg)/(sig+(1e-8))
 def sigmoid(z):
     return 1/(1+(np.exp(-np.clip(z,-500,500))))
 def relu(z):
@@ -49,7 +55,7 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         z1 = relu(a1)
         a2 = np.dot(z1,w2)+b2 
         z2 = relu(a2)
-        a3 = np.dot(z1,w3)+b3
+        a3 = np.dot(z2,w3)+b3
         z3 = relu(a3)
         a4 = np.dot(z3,w4)+b4 
         z4 = relu(a4)
@@ -57,7 +63,6 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         z5 = sigmoid(a5)
 
         loss = bse(z5,y_train)
-        print(loss)
 
         da5 = (z5-y_train)
         dw5 = (1/m)*(np.dot(z4.T,da5))
@@ -87,5 +92,6 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         b1 -= lrt*db1 
 
         if ephoc%100 ==0:
+            print(f"{loss}%")
 
 process(x_train,y_train,x_valid,y_valid,x_test,y_test)         
