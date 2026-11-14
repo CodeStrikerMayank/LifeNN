@@ -105,16 +105,28 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
                 compar_loss = loss
                 best_w1 = w1
                 best_w2 = w2 
-                best_w3 =w3
+                best_w3 = w3
                 best_w4 = w4
                 best_w5 = w5 
                 best_b1 = b1
                 best_b2 = b2
-                best_b3= b3
-                best_b4=b4
-                best_b5 =b5 
+                best_b3 = b3
+                best_b4 = b4
+                best_b5 = b5 
                 best_ephoc = ephoc
                 print(f"Epoch {ephoc}:Loss ={loss:.4f}")
-                
+                np.savez_compressed("data.npz", 
+                    b1=best_b1, 
+                    b2=best_b2, 
+                    b3=best_b3, 
+                    b4=best_b4, 
+                    b5=best_b5,
+                    w1=best_w1, 
+                    w2=best_w2, 
+                    w3=best_w3, 
+                    w4=best_w4, 
+                    w5=best_w5,
+                    epoch=best_ephoc)
+
 
 process(x_train,y_train,x_valid,y_valid,x_test,y_test)         
