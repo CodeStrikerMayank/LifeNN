@@ -23,19 +23,25 @@ avg = np.mean(x_train,axis=0,keepdims=True)
 x_train = (x_train-avg)/(sig+(1e-8))
 x_valid = (x_valid-avg)/(sig+(1e-8))
 x_test = (x_test-avg)/(sig+(1e-8))
+
 def sigmoid(z):
     return 1/(1+(np.exp(-np.clip(z,-500,500))))
 def relu(z):
     return np.maximum(z*0.01,z)
 def relu_deri(z):
     return np.where(z>0,1.0,0.01)
-    
+
 def bse(y_true, y_pred):
     epsilon = 1e-15
     y_pred_clipped = np.clip(y_pred, epsilon, 1.0 - epsilon)
     return -np.mean(y_true * np.log(y_pred_clipped) + (1.0 - y_true) * np.log(1.0 - y_pred_clipped))
+
 def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
     # Creating neurons and their layers
+    compare_loss = float("inf")
+    best_w1=best_w2=best_w3=best_w4=best_w5=0.0
+    best_b1=best_b2=best_b3=best_b4=best_b5=0.0
+
     w1 = np.random.randn(30, 16) * np.sqrt(2 / 30)
     b1 = np.zeros((1, 16))
     w2 = np.random.randn(16, 8) * np.sqrt(2 / 16)
@@ -45,13 +51,14 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
     w4 = np.random.randn(4, 2) * np.sqrt(2 / 4)
     b4 = np.zeros((1, 2))
     w5 = np.random.randn(2, 1) * np.sqrt(1 / 2)
-    b5 = np.zeros((1, 1))    
+    b5 = np.zeros((1, 1))   
+
     lrt = 0.05 
     ephocs = 10000
     # activation the code 
     m = len(x_train)
     for ephoc in range(ephocs):
-
+  
         a1 = np.dot(x_train,w1)+b1 
         z1 = relu(a1)
         a2 = np.dot(z1,w2)+b2 
@@ -93,6 +100,21 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
         b1 -= lrt*db1 
 
         if ephoc % 1000 == 0:
-            print(f"Epoch {ephoc}: Loss = {loss:.4f}")
+#            print(f"Epoch {ephoc}: Loss = {loss:.4f}")
+            if compare_loss>loss:
+                compar_loss = loss
+                best_w1 = w1
+                best_w2 = w2 
+                best_w3 =w3
+                best_w4 = w4
+                best_w5 = w5 
+                best_b1 = b1
+                best_b2 = b2
+                best_b3= b3
+                best_b4=b4
+                best_b5 =b5 
+                best_ephoc = ephoc
+                print(f"Epoch {ephoc}:Loss ={loss:.4f}")
+                
 
 process(x_train,y_train,x_valid,y_valid,x_test,y_test)         
