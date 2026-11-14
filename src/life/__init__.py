@@ -29,6 +29,7 @@ def relu(z):
     return np.maximum(z*0.01,z)
 def relu_deri(z):
     return np.where(z>0,1.0,0.01)
+    
 def bse(y_true, y_pred):
     epsilon = 1e-15
     y_pred_clipped = np.clip(y_pred, epsilon, 1.0 - epsilon)
