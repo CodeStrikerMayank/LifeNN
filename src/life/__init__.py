@@ -1,148 +1,282 @@
-lazy import pandas as pd 
-lazy import numpy as np 
-lazy from sklearn.model_selection import train_test_split as ts 
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from sklearn.model_selection import train_test_split as ts
 
-data = pd.read_csv(r"D:\MachineLearning\Core Projects\Life\neural_network_practice_dataset.csv")
-information = ['mean radius', 'mean texture', 'mean perimeter', 'mean area',
-       'mean smoothness', 'mean compactness', 'mean concavity',
-       'mean concave points', 'mean symmetry', 'mean fractal dimension',
-       'radius error', 'texture error', 'perimeter error', 'area error',
-       'smoothness error', 'compactness error', 'concavity error',
-       'concave points error', 'symmetry error', 'fractal dimension error',
-       'worst radius', 'worst texture', 'worst perimeter', 'worst area',
-       'worst smoothness', 'worst compactness', 'worst concavity',
-       'worst concave points', 'worst symmetry', 'worst fractal dimension']
+FEATURE_NAMES = [
+    'mean radius', 'mean texture', 'mean perimeter', 'mean area',
+    'mean smoothness', 'mean compactness', 'mean concavity',
+    'mean concave points', 'mean symmetry', 'mean fractal dimension',
+    'radius error', 'texture error', 'perimeter error', 'area error',
+    'smoothness error', 'compactness error', 'concavity error',
+    'concave points error', 'symmetry error', 'fractal dimension error',
+    'worst radius', 'worst texture', 'worst perimeter', 'worst area',
+    'worst smoothness', 'worst compactness', 'worst concavity',
+    'worst concave points', 'worst symmetry', 'worst fractal dimension'
+]
 
-X = data[information].to_numpy()
-Y = data["diagnosis"].map({"malignant":0,"benign":1}).to_numpy().reshape(-1, 1)
-x_train,x_temp,y_train,y_temp=ts(X,Y,test_size=0.30,random_state=42,shuffle=True)
-x_valid,x_test,y_valid,y_test = ts(x_temp,y_temp,test_size=0.50,random_state=42,shuffle=True)
-"""Standardisation of the  inputs and create a uniformity"""
-sig = np.std(x_train,axis=0,keepdims=True)
-avg = np.mean(x_train,axis=0,keepdims=True)
-x_train = (x_train-avg)/(sig+(1e-8))
-x_valid = (x_valid-avg)/(sig+(1e-8))
-x_test = (x_test-avg)/(sig+(1e-8))
+
+def get_default_dataset_path() -> Path:
+    """Finds the dataset path dynamically relative to the package or current directory."""
+    # Check parent project directory first
+    pkg_dir = Path(__file__).resolve().parent
+    candidates = [
+        pkg_dir.parent.parent / "neural_network_practice_dataset.csv",
+        Path.cwd() / "neural_network_practice_dataset.csv",
+        pkg_dir / "neural_network_practice_dataset.csv"
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def load_data(csv_path=None, test_size=0.30, val_size=0.50, random_state=42):
+    """Loads and standardizes dataset, splitting into train, validation, and test sets."""
+    if csv_path is None:
+        csv_path = get_default_dataset_path()
+
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Dataset not found at {csv_path}")
+
+    data = pd.read_csv(csv_path)
+    X = data[FEATURE_NAMES].to_numpy()
+    Y = data["diagnosis"].map({"malignant": 0, "benign": 1}).to_numpy().reshape(-1, 1)
+
+    # Split into train and temporary holdout
+    x_train, x_temp, y_train, y_temp = ts(
+        X, Y, test_size=test_size, random_state=random_state, shuffle=True
+    )
+    # Split holdout into validation and test
+    x_valid, x_test, y_valid, y_test = ts(
+        x_temp, y_temp, test_size=val_size, random_state=random_state, shuffle=True
+    )
+
+    # Standardization: calculate statistics strictly from training set to avoid data leakage
+    mean = np.mean(x_train, axis=0, keepdims=True)
+    std = np.std(x_train, axis=0, keepdims=True)
+    eps = 1e-8
+
+    x_train_norm = (x_train - mean) / (std + eps)
+    x_valid_norm = (x_valid - mean) / (std + eps)
+    x_test_norm = (x_test - mean) / (std + eps)
+
+    return (x_train_norm, y_train), (x_valid_norm, y_valid), (x_test_norm, y_test), (mean, std)
+
 
 def sigmoid(z):
-    return 1/(1+(np.exp(-np.clip(z,-500,500))))
-def relu(z):
-    return np.maximum(z*0.01,z)
-def relu_deri(z):
-    return np.where(z>0,1.0,0.01)
+    """Numerically stable sigmoid activation."""
+    return 1.0 / (1.0 + np.exp(-np.clip(z, -500, 500)))
 
-def bse(y_true, y_pred):
+
+def leaky_relu(z, alpha=0.01):
+    """Leaky ReLU activation function."""
+    return np.maximum(alpha * z, z)
+
+
+def leaky_relu_deriv(z, alpha=0.01):
+    """Derivative of Leaky ReLU activation function."""
+    return np.where(z > 0, 1.0, alpha)
+
+
+# Aliases for backward compatibility
+relu = leaky_relu
+relu_deri = leaky_relu_deriv
+
+
+def bce(y_true, y_pred):
+    """Binary cross-entropy loss."""
     epsilon = 1e-15
     y_pred_clipped = np.clip(y_pred, epsilon, 1.0 - epsilon)
     return -np.mean(y_true * np.log(y_pred_clipped) + (1.0 - y_true) * np.log(1.0 - y_pred_clipped))
 
-def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
-    # Creating neurons and their layers
-    compare_loss = float("inf")
-    best_w1=best_w2=best_w3=best_w4=best_w5=0.0
-    best_b1=best_b2=best_b3=best_b4=best_b5=0.0
 
-    w1 = np.random.randn(30, 16) * np.sqrt(2 / 30)
+# Alias for backward compatibility
+bse = bce
+
+
+def compute_accuracy(y_true, y_pred, threshold=0.5):
+    """Calculates classification accuracy in percentage."""
+    predictions = (y_pred >= threshold).astype(float)
+    return np.mean(predictions == y_true) * 100.0
+
+
+def forward(X, w1, b1, w2, b2, w3, b3, w4, b4, w5, b5):
+    """Performs forward propagation through the 5-layer network.
+    
+    Standard notation:
+    z_l = linear pre-activation (W * a_(l-1) + b)
+    a_l = activation output (f(z_l))
+    """
+    z1 = np.dot(X, w1) + b1
+    a1 = leaky_relu(z1)
+
+    z2 = np.dot(a1, w2) + b2
+    a2 = leaky_relu(z2)
+
+    z3 = np.dot(a2, w3) + b3
+    a3 = leaky_relu(z3)
+
+    z4 = np.dot(a3, w4) + b4
+    a4 = leaky_relu(z4)
+
+    z5 = np.dot(a4, w5) + b5
+    a5 = sigmoid(z5)
+
+    return z1, a1, z2, a2, z3, a3, z4, a4, z5, a5
+
+
+def predict(X, w1, b1, w2, b2, w3, b3, w4, b4, w5, b5):
+    """Computes output probabilities for input X."""
+    *_, a5 = forward(X, w1, b1, w2, b2, w3, b3, w4, b4, w5, b5)
+    return a5
+
+
+def process(x_train, y_train, x_valid, y_valid, x_test=None, y_test=None,
+            mean=None, std=None, learning_rate=0.05, epochs=10000,
+            save_path="data.npz", seed=42):
+    """Trains the 5-layer neural network with backpropagation and saves the best model checkpoint."""
+    if seed is not None:
+        np.random.seed(seed)
+
+    # He / Xavier weight initialization
+    w1 = np.random.randn(30, 16) * np.sqrt(2.0 / 30)
     b1 = np.zeros((1, 16))
-    w2 = np.random.randn(16, 8) * np.sqrt(2 / 16)
+    w2 = np.random.randn(16, 8) * np.sqrt(2.0 / 16)
     b2 = np.zeros((1, 8))
-    w3 = np.random.randn(8, 4) * np.sqrt(2 / 8)
+    w3 = np.random.randn(8, 4) * np.sqrt(2.0 / 8)
     b3 = np.zeros((1, 4))
-    w4 = np.random.randn(4, 2) * np.sqrt(2 / 4)
+    w4 = np.random.randn(4, 2) * np.sqrt(2.0 / 4)
     b4 = np.zeros((1, 2))
-    w5 = np.random.randn(2, 1) * np.sqrt(1 / 2)
-    b5 = np.zeros((1, 1))   
+    w5 = np.random.randn(2, 1) * np.sqrt(1.0 / 2)
+    b5 = np.zeros((1, 1))
 
-    lrt = 0.05 
-    ephocs = 10000
-    # activation the code 
+    compare_loss = float("inf")
+    best_epoch = 0
+    best_val_accuracy = 0.0
+
+    best_w1, best_b1 = w1.copy(), b1.copy()
+    best_w2, best_b2 = w2.copy(), b2.copy()
+    best_w3, best_b3 = w3.copy(), b3.copy()
+    best_w4, best_b4 = w4.copy(), b4.copy()
+    best_w5, best_b5 = w5.copy(), b5.copy()
+
     m = len(x_train)
-    for ephoc in range(ephocs):
-  
-        a1 = np.dot(x_train,w1)+b1 
-        z1 = relu(a1)
-        a2 = np.dot(z1,w2)+b2 
-        z2 = relu(a2)
-        a3 = np.dot(z2,w3)+b3
-        z3 = relu(a3)
-        a4 = np.dot(z3,w4)+b4 
-        z4 = relu(a4)
-        a5 = np.dot(z4,w5)+b5
-        z5 = sigmoid(a5)
 
-        da5 = (z5-y_train)
-        dw5 = (1/m)*(np.dot(z4.T,da5))
-        db5 = (1/m)*np.sum(da5,keepdims=True,axis=0)
-        da4 = np.dot(da5,w5.T)*relu_deri(a4)
-        dw4 = (1/m)*np.dot(z3.T,da4)
-        db4 = (1/m)*np.sum(da4,axis=0,keepdims=True)
-        da3 = np.dot(da4,w4.T)*relu_deri(a3)
-        dw3 = (1/m)*np.dot(z2.T,da3)
-        db3 = (1/m)*np.sum(da3,axis=0,keepdims=True)
-        da2 = np.dot(da3,w3.T)*relu_deri(a2)
-        dw2 = (1/m)*np.dot(z1.T,da2)
-        db2 = (1/m)*np.sum(da2,axis=0,keepdims=True)
-        da1 = np.dot(da2,w2.T)*relu_deri(a1)
-        dw1 = (1/m)*np.dot(x_train.T,da1)
-        db1 = (1/m)*np.sum(da1,axis=0,keepdims=True)
+    for epoch in range(epochs):
+        # 1. Forward propagation
+        z1, a1, z2, a2, z3, a3, z4, a4, z5, a5 = forward(
+            x_train, w1, b1, w2, b2, w3, b3, w4, b4, w5, b5
+        )
 
-        w5 -= lrt*dw5 
-        b5 -= lrt*db5 
-        w4 -= lrt*dw4 
-        b4 -= lrt*db4 
-        w3 -= lrt*dw3 
-        b3 -= lrt*db3      
-        w2 -= lrt*dw2   
-        b2 -= lrt*db2 
-        w1 -= lrt*dw1  
-        b1 -= lrt*db1
+        # 2. Backward propagation
+        # Layer 5 (Output)
+        dz5 = a5 - y_train
+        dw5 = (1.0 / m) * np.dot(a4.T, dz5)
+        db5 = (1.0 / m) * np.sum(dz5, axis=0, keepdims=True)
 
-        if ephoc % 1000 == 0:
-            """NEW LOSS AND UPDATE"""
-            vz1 = np.dot(x_valid,w1)+b1
-            va1 = relu(vz1) 
-            vz2 = np.dot(va1,w2)+b2
-            va2 = relu(vz2) 
-            vz3 = np.dot(va2,w3)+b3 
-            va3 = relu(vz3)
-            vz4 = np.dot(va3,w4)+b4      
-            va4 = relu(vz4)
-            vz5 = np.dot(va4,w5)+b5        
-            va5 = sigmoid(vz5)
-            loss = bse(y_valid,va5)
-            refi = np.where(va5>=0.5,1.0,0.0)
-            acuracy = np.mean(refi==y_valid) *100
-            print(f"Epoch {ephoc}:Loss ={loss:.4f}:accuracy = {acuracy:.4f} %")
+        # Layer 4
+        dz4 = np.dot(dz5, w5.T) * leaky_relu_deriv(z4)
+        dw4 = (1.0 / m) * np.dot(a3.T, dz4)
+        db4 = (1.0 / m) * np.sum(dz4, axis=0, keepdims=True)
 
-            if compare_loss > loss:
-                compare_loss = loss
-                best_w1 = w1
-                best_w2 = w2    
-                best_w3 = w3
-                best_w4 = w4
-                best_w5 = w5 
-                best_b1 = b1
-                best_b2 = b2
-                best_b3 = b3
-                best_b4 = b4
-                best_b5 = b5 
-                best_ephoc = ephoc
-                
-    np.savez_compressed("data.npz", 
-                    b1=best_b1, 
-                    b2=best_b2, 
-                    b3=best_b3, 
-                    b4=best_b4, 
-                    b5=best_b5,
-                    w1=best_w1, 
-                    w2=best_w2, 
-                    w3=best_w3, 
-                    w4=best_w4, 
-                    w5=best_w5,
-                    epoch=best_ephoc)            
+        # Layer 3
+        dz3 = np.dot(dz4, w4.T) * leaky_relu_deriv(z3)
+        dw3 = (1.0 / m) * np.dot(a2.T, dz3)
+        db3 = (1.0 / m) * np.sum(dz3, axis=0, keepdims=True)
+
+        # Layer 2
+        dz2 = np.dot(dz3, w3.T) * leaky_relu_deriv(z2)
+        dw2 = (1.0 / m) * np.dot(a1.T, dz2)
+        db2 = (1.0 / m) * np.sum(dz2, axis=0, keepdims=True)
+
+        # Layer 1
+        dz1 = np.dot(dz2, w2.T) * leaky_relu_deriv(z1)
+        dw1 = (1.0 / m) * np.dot(x_train.T, dz1)
+        db1 = (1.0 / m) * np.sum(dz1, axis=0, keepdims=True)
+
+        # 3. Gradient descent updates
+        w5 -= learning_rate * dw5
+        b5 -= learning_rate * db5
+        w4 -= learning_rate * dw4
+        b4 -= learning_rate * db4
+        w3 -= learning_rate * dw3
+        b3 -= learning_rate * db3
+        w2 -= learning_rate * dw2
+        b2 -= learning_rate * db2
+        w1 -= learning_rate * dw1
+        b1 -= learning_rate * db1
+
+        # Periodic validation & checkpointing
+        if epoch % 1000 == 0 or epoch == epochs - 1:
+            val_preds = predict(x_valid, w1, b1, w2, b2, w3, b3, w4, b4, w5, b5)
+            val_loss = bce(y_valid, val_preds)
+            val_acc = compute_accuracy(y_valid, val_preds)
+            print(f"Epoch {epoch:5d}: Validation Loss = {val_loss:.4f} | Validation Accuracy = {val_acc:.2f}%")
+
+            # Checkpoint the best model (using .copy() to prevent in-place mutation)
+            if val_loss < compare_loss:
+                compare_loss = val_loss
+                best_epoch = epoch
+                best_val_accuracy = val_acc
+                best_w1, best_b1 = w1.copy(), b1.copy()
+                best_w2, best_b2 = w2.copy(), b2.copy()
+                best_w3, best_b3 = w3.copy(), b3.copy()
+                best_w4, best_b4 = w4.copy(), b4.copy()
+                best_w5, best_b5 = w5.copy(), b5.copy()
+
+    print("\n--- Training Finished ---")
+    print(f"Best Model from Epoch {best_epoch}: Validation Loss = {compare_loss:.4f} | Validation Accuracy = {best_val_accuracy:.2f}%")
+
+    # Evaluate best model on test set if provided
+    if x_test is not None and y_test is not None:
+        test_preds = predict(x_test, best_w1, best_b1, best_w2, best_b2, best_w3, best_b3, best_w4, best_b4, best_w5, best_b5)
+        test_loss = bce(y_test, test_preds)
+        test_acc = compute_accuracy(y_test, test_preds)
+        print(f"Test Set Evaluation: Test Loss = {test_loss:.4f} | Test Accuracy = {test_acc:.2f}%")
+
+    # Save model weights, biases, best epoch, and normalization parameters
+    save_data = {
+        "w1": best_w1, "b1": best_b1,
+        "w2": best_w2, "b2": best_b2,
+        "w3": best_w3, "b3": best_b3,
+        "w4": best_w4, "b4": best_b4,
+        "w5": best_w5, "b5": best_b5,
+        "epoch": best_epoch,
+        "best_val_loss": compare_loss,
+        "best_val_accuracy": best_val_accuracy
+    }
+    if mean is not None and std is not None:
+        save_data["mean"] = mean
+        save_data["std"] = std
+
+    np.savez_compressed(save_path, **save_data)
+    print(f"Model saved successfully to {save_path}")
+
+    return {
+        "weights": (best_w1, best_w2, best_w3, best_w4, best_w5),
+        "biases": (best_b1, best_b2, best_b3, best_b4, best_b5),
+        "best_epoch": best_epoch,
+        "best_val_loss": compare_loss,
+        "best_val_accuracy": best_val_accuracy
+    }
+
 
 def main():
-    process(x_train, y_train, x_valid, y_valid, x_test, y_test)
+    """Main CLI execution flow."""
+    (x_train, y_train), (x_valid, y_valid), (x_test, y_test), (mean, std) = load_data()
+    save_path = Path(__file__).resolve().parent.parent.parent / "data.npz"
+    process(
+        x_train, y_train,
+        x_valid, y_valid,
+        x_test, y_test,
+        mean=mean, std=std,
+        learning_rate=0.05,
+        epochs=10000,
+        save_path=save_path
+    )
+
 
 if __name__ == "__main__":
     main()
