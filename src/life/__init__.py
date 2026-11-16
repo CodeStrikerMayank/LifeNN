@@ -114,7 +114,7 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
             if compare_loss > loss:
                 compare_loss = loss
                 best_w1 = w1
-                best_w2 = w2 
+                best_w2 = w2    
                 best_w3 = w3
                 best_w4 = w4
                 best_w5 = w5 
@@ -124,7 +124,9 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
                 best_b4 = b4
                 best_b5 = b5 
                 best_ephoc = ephoc
-                print(f"Epoch {ephoc}:Loss ={loss:.4f}")
+                refi = np.where(best_ephoc>=0.5,1.0,0.0)
+                acuracy = np.mean(refi==y_valid) *100
+                print(f"Epoch {ephoc}:Loss ={loss:.4f}:accuracy = {acuracy:.4f} %")
                 np.savez_compressed("data.npz", 
                     b1=best_b1, 
                     b2=best_b2, 
