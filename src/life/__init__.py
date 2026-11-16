@@ -99,20 +99,20 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
 
         if ephoc % 1000 == 0:
             """NEW LOSS AND UPDATE"""
-            vz1 = np.dot(x_val,w1)+b1
+            vz1 = np.dot(x_valid,w1)+b1
             va1 = relu(vz1) 
             vz2 = np.dot(va1,w2)+b2
             va2 = relu(vz2) 
-            vz3 = np.dot(vz1)+b3 
+            vz3 = np.dot(va2,w3)+b3 
             va3 = relu(vz3)
             vz4 = np.dot(va3,w4)+b4      
             va4 = relu(vz4)
             vz5 = np.dot(va4,w5)+b5        
             va5 = sigmoid(vz5)
-            bse(y_valid,va5)
-#            print(f"Epoch {ephoc}: Loss = {loss:.4f}")
-            if compare_loss>loss:
-                compar_loss = loss
+            loss = bse(y_valid,va5)
+            print(f"Epoch {ephoc}: Loss = {loss:.4f}")
+            if compare_loss > loss:
+                compare_loss = loss
                 best_w1 = w1
                 best_w2 = w2 
                 best_w3 = w3
@@ -137,6 +137,9 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
                     w4=best_w4, 
                     w5=best_w5,
                     epoch=best_ephoc)
-                print(f"{}")
 
-process(x_train,y_train,x_valid,y_valid,x_test,y_test)         
+def main():
+    process(x_train, y_train, x_valid, y_valid, x_test, y_test)
+
+if __name__ == "__main__":
+    main()
