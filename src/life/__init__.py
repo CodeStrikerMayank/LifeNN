@@ -110,7 +110,10 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
             vz5 = np.dot(va4,w5)+b5        
             va5 = sigmoid(vz5)
             loss = bse(y_valid,va5)
-            print(f"Epoch {ephoc}: Loss = {loss:.4f}")
+            refi = np.where(va5>=0.5,1.0,0.0)
+            acuracy = np.mean(refi==y_valid) *100
+            print(f"Epoch {ephoc}:Loss ={loss:.4f}:accuracy = {acuracy:.4f} %")
+
             if compare_loss > loss:
                 compare_loss = loss
                 best_w1 = w1
@@ -124,10 +127,8 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
                 best_b4 = b4
                 best_b5 = b5 
                 best_ephoc = ephoc
-                refi = np.where(best_ephoc>=0.5,1.0,0.0)
-                acuracy = np.mean(refi==y_valid) *100
-                print(f"Epoch {ephoc}:Loss ={loss:.4f}:accuracy = {acuracy:.4f} %")
-                np.savez_compressed("data.npz", 
+                
+    np.savez_compressed("data.npz", 
                     b1=best_b1, 
                     b2=best_b2, 
                     b3=best_b3, 
@@ -138,7 +139,7 @@ def process(x_train,y_train,x_valid,y_valid,x_test,y_test):
                     w3=best_w3, 
                     w4=best_w4, 
                     w5=best_w5,
-                    epoch=best_ephoc)
+                    epoch=best_ephoc)            
 
 def main():
     process(x_train, y_train, x_valid, y_valid, x_test, y_test)
